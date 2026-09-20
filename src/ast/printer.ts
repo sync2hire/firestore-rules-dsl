@@ -20,7 +20,7 @@ export interface PrintOptions {
   indent?: string
 }
 
-const ExpressionPrecedence: Record<string, number> = {
+const ExpressionPrecedence: Partial<Record<ExpressionNode["kind"], number>> = {
   ConditionalExpression: 1,
   IsExpression: 4,
   UnaryExpression: 5,
@@ -138,7 +138,7 @@ function printExpression(node: ExpressionNode, minPrecedence = 0): string {
       return wrapIfNeeded(body, node, minPrecedence)
     }
     case NodeKind.isExpression: {
-      const body = `${printExpression(node.expression, ExpressionPrecedence.isExpression)} is ${node.typeName}`
+      const body = `${printExpression(node.expression, ExpressionPrecedence.IsExpression)} is ${node.typeName}`
       return wrapIfNeeded(body, node, minPrecedence)
     }
     case NodeKind.binaryExpression:
@@ -150,20 +150,20 @@ function printExpression(node: ExpressionNode, minPrecedence = 0): string {
       return wrapIfNeeded(body, node, minPrecedence)
     }
     case NodeKind.conditionalExpression: {
-      const precedence = ExpressionPrecedence.conditionalExpression
+      const precedence = ExpressionPrecedence.ConditionalExpression
       const body = `${printExpression(node.test, precedence)} ? ${printExpression(node.consequent)} : ${printExpression(node.alternate, precedence)}`
       return wrapIfNeeded(body, node, minPrecedence)
     }
     case NodeKind.callExpression: {
-      const body = `${printExpression(node.callee, ExpressionPrecedence.callExpression)}(${node.arguments.map((arg) => printExpression(arg)).join(", ")})`
+      const body = `${printExpression(node.callee, ExpressionPrecedence.CallExpression)}(${node.arguments.map((arg) => printExpression(arg)).join(", ")})`
       return wrapIfNeeded(body, node, minPrecedence)
     }
     case NodeKind.memberExpression: {
-      const body = `${printExpression(node.object, ExpressionPrecedence.memberExpression)}.${node.property.name}`
+      const body = `${printExpression(node.object, ExpressionPrecedence.MemberExpression)}.${node.property.name}`
       return wrapIfNeeded(body, node, minPrecedence)
     }
     case NodeKind.indexExpression: {
-      const body = `${printExpression(node.object, ExpressionPrecedence.indexExpression)}[${printExpression(node.index)}]`
+      const body = `${printExpression(node.object, ExpressionPrecedence.IndexExpression)}[${printExpression(node.index)}]`
       return wrapIfNeeded(body, node, minPrecedence)
     }
     case NodeKind.pathExpression:
