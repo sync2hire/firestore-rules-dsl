@@ -14,6 +14,7 @@ import {
   matchDeclaration,
   pathLiteralSegment,
   pathPattern,
+  pathRecursiveSegment,
   pathVariableSegment,
   program,
   serviceDeclaration,
@@ -150,9 +151,10 @@ function toExpressionNode(input: RuleConditionInput): ExpressionNode {
 function toPathSegments(path: string): PathSegmentNode[] {
   const segments = path.split("/").filter((segment) => segment.length > 0)
   return segments.map((segment) => {
-    const paramMatch = /^\{([A-Za-z_][A-Za-z0-9_]*)\}$/.exec(segment)
+    const paramMatch = /^\{([A-Za-z_][A-Za-z0-9_]*)(=\*\*)?\}$/.exec(segment)
     if (paramMatch) {
-      return pathVariableSegment(paramMatch[1] ?? "id")
+      const name = paramMatch[1] ?? "id"
+      return paramMatch[2] ? pathRecursiveSegment(name) : pathVariableSegment(name)
     }
     return pathLiteralSegment(segment)
   })
@@ -426,7 +428,10 @@ export class FirestoreAstRulesBuilder<
     if (this.currentPath === null) return null
 
     // Guard: a param name in this segment must not shadow any ancestor param.
-    const parentPath = this.fullPath.slice(0, this.fullPath.length - this.currentPath.length - 1)
+    const parentPath =
+      this.fullPath === this.currentPath
+        ? ""
+        : this.fullPath.slice(0, this.fullPath.length - this.currentPath.length - 1)
     if (parentPath) {
       const parentParams = extractPathParamNames(parentPath)
       for (const param of extractPathParamNames(this.currentPath)) {

@@ -103,6 +103,38 @@ describe("ast rules builder", () => {
     expect(source).not.toContain("function neverUsed(")
   })
 
+  it("emits getUserData from $.db.users(uid).get().data", () => {
+    const builder = createAstRulesBuilder<TestDb>().withHelpers(($, { def }) => ({
+      getUserData: def("getUserData", {
+        body: () => {
+          const fetched = $.db.users($.request.auth.uid).get() as unknown as { data: RuleValue }
+          return fetched.data
+        },
+      }),
+    }))
+
+    builder.matches((match) => {
+      match("users/{userId}", (users, $) => {
+        users.allow("read", $.getUserData())
+      })
+    })
+
+    expect(builder.toString()).toMatchInlineSnapshot(`
+      "rules_version = '2';
+      service cloud.firestore {
+        match /databases/{database}/documents {
+          function getUserData() {
+            return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+          }
+          match /users/{userId} {
+            allow read: if getUserData();
+          }
+        }
+      }
+      "
+    `)
+  })
+
   it("rejects conflicting operations", () => {
     const builder = createAstRulesBuilder<TestDb>()
     builder.matches((match) => {
@@ -166,6 +198,30 @@ describe("ast rules builder", () => {
     })
 
     expect(() => builder.toString()).toThrow('Recursive helper call detected for "recursive".')
+  })
+
+  it("emits recursive wildcard params at the top level and in a collection-group prefix", () => {
+    type GroupDb = DatabaseDefinition<
+      {
+        "{path=**}/channels": CollectionShape<{ type: string }>
+        ai_sends: CollectionShape<{ count: number }>
+      },
+      Record<string, never>
+    >
+    const builder = createAstRulesBuilder<GroupDb>()
+
+    builder.matches((match) => {
+      match("{path=**}/channels/{channelId}", (channels, $) => {
+        channels.allow("read", $.request.auth.uid.neq(""))
+      })
+      match("ai_sends/{document=**}", (sends) => {
+        sends.allow(["read", "write"], false)
+      })
+    })
+
+    const source = builder.toString()
+    expect(source).toContain("match /{path=**}/channels/{channelId} {")
+    expect(source).toContain("match /ai_sends/{document=**} {")
   })
 
   it("rejects duplicate param names between nested match paths", () => {
